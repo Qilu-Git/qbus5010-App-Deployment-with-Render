@@ -1,89 +1,65 @@
-# Run this app with `python app.py`
-
-from dash import Dash, html, dcc
-import plotly.express as px
-import plotly.graph_objects as go
 import pandas as pd
-from plotly.subplots import make_subplots
+import folium
+from folium.plugins import FastMarkerCluster
+from dash import Dash, dcc, html, Input, Output
 
+# Load your data
+df = pd.read_csv("df.csv")
+
+# Initialize the Dash app
 app = Dash(__name__)
 
-# Add server start
+# Layout of the app
+app.layout = html.Div([
+    html.H1("Australia Charities Map Dashboard"),
 
-tips = pd.read_csv('RestaurantTips.csv')
-
-def make_correlation_heatmap():
-    tips_cor = tips.corr(numeric_only=True)
-
-    fig = px.imshow(
-    tips_cor, 
-    text_auto=True, 
-    aspect="auto", 
-    )
-    
-    fig.update_traces(texttemplate="%{z:.2f}")
-
-    return fig
-
-def make_scatter_plot():
-    fig = px.scatter(
-        tips, 
-        x="total_bill", 
-        y="tip", 
-        color="sex",
-        size = "size", 
-        symbol="smoker", 
-        facet_col="day",
-        facet_row = "time", 
-        labels={"sex": "Gender", "smoker": "Smokes"},
-        category_orders={"day": ["Thur", "Fri", "Sat", "Sun"],
-        "time": ["Lunch", "Dinner"]})
-
-    fig.update_xaxes(title_text = "Total Bill ($)")
-    fig.update_yaxes(title_text = "Tips ($)")
-
-    return fig
-
-app.layout = html.Div(children=[
-    html.H1(children = "Restaurant Tips Exploratory Data Analysis", style={
-        "textAlign": "center",
-        "font-size": "70px",
-        "font-weight": "600",
-        "background-image": "linear-gradient(to right, #553c9a 45%, #ee4b2b)",
-        "color": "transparent",
-        "background-clip": "text",
-        "-webkit-background-clip": "text",
-}),
-    html.Div(children='''
-         This data set is from our local restaurant.
-    '''),
-    html.H2(children='Correlation Heatmap', style={
-        "font-size": "45px",
-        "font-weight": "400",
-        "background-image": "linear-gradient(to right, #553c9a 45%, #ee4b2b)",
-        "color": "transparent",
-        "background-clip": "text",
-        "-webkit-background-clip": "text",
-    }),
-    dcc.Graph(
-        id='correlation_graph',
-        figure=make_correlation_heatmap()
-        ),
-        
-        
-    html.H2(children='Scatter comparing Total Bill and Tips', style={
-        "font-size": "45px",
-        "font-weight": "400",
-        "background-image": "linear-gradient(to right, #553c9a 45%, #ee4b2b)",
-        "color": "transparent",
-        "background-clip": "text",
-        "-webkit-background-clip": "text",
-    }),
-    dcc.Graph(id='scatter_graph',
-        figure=make_scatter_plot()
+    html.Label("Select the Main Activity Types of the Charity:"),
+    dcc.Dropdown(
+        options=[{'label': 'All', 'value': 'All'}] + 
+                [{'label': activity, 'value': activity} for activity in df['main_activity'].unique()],
+        id='charity-type',
+        value='All' 
     ),
+
+    html.Label("Select the State:"),
+    dcc.Dropdown(
+        options=[{'label': 'All', 'value': 'All'}] + 
+                [{'label': state, 'value': state} for state in df['state'].unique()],
+        id='state-dropdown',
+        value='All'
+    ),
+
+    html.Iframe(id='map', srcDoc=None, width='35%', height='500'),
 ])
 
-# Start the server
+# Callback to update the map and charity list based on filters
+@app.callback(
+    Output('map', 'srcDoc'),
+    Input('charity-type', 'value'),
+    Input('state-dropdown', 'value')
+)
+def update_map_and_list(selected_activity, selected_state):
+    # Filter based on selected activity
+    if selected_activity == 'All':
+        filtered_df = df
+    else:
+        filtered_df = df[df['main_activity'] == selected_activity]
+
+    # Further filter based on selected state
+    if selected_state != 'All':
+        filtered_df = filtered_df[filtered_df['state'] == selected_state]
+
+    # Create the map
+    latitude = filtered_df['latitude'].tolist()
+    longitude = filtered_df['longitude'].tolist()
+    locations = list(zip(latitude, longitude))
+
+    map = folium.Map(location=[-25.2744, 133.7751], zoom_start=5)  # Centered on Australia
+    FastMarkerCluster(data=locations).add_to(map)
+    map.save("map.html")
+
+    return open("map.html", "r").read()
+
+# Run the server
 if __name__ == '__main__':
     app.run_server(debug=True)
