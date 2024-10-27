@@ -13,7 +13,7 @@ app = Dash(__name__)
 tips = pd.read_csv('RestaurantTips.csv')
 
 def make_correlation_heatmap():
-    tips_cor = tips.corr()
+    tips_cor = tips.corr(numeric_only=True)
 
     fig = px.imshow(
     tips_cor, 
